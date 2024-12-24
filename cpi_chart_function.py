@@ -52,7 +52,7 @@ def create_area_fillgradient(dff, x_col_name, y_col_name, col_scale, line_color,
         marker=dict(color=['rgba(0, 180, 0, 1)', 'red'], size=5), 
         name='' )
     
-    fig.update_traces(hovertemplate='%{x}<br>Index = $%{y:.1f}')
+    fig.update_traces(hovertemplate='%{x}<br>Index = $%{y:.2f}')
 
     # Calculate trend
     cng = dff[y_col_name].values[[0, -1]]
@@ -92,7 +92,7 @@ def create_bar_chart_with_changes(dff, last_year, prev_year, title):
     fig.add_bar(
         x=x, y=y1, 
         customdata=y2, 
-        hovertemplate='%{y:,.1f}$<br>PY : %{customdata:,.1f}$',                
+        hovertemplate='%{y:,.2f}$<br>PY : %{customdata:,.2f}$',                
         marker_color='rgba(31,119,180,0.5)',
         width=0.8, name='LY')
     
@@ -110,7 +110,7 @@ def create_bar_chart_with_changes(dff, last_year, prev_year, title):
     fig.add_bar(
         x=x, y=delta_py,         
         customdata=delta_py,        
-        hovertemplate='Change : %{customdata:,.1f}$',
+        hovertemplate='Change : %{customdata:,.2f}$',
         marker_color=bar_color, 
         base=y2, width=0.5, name='')
     
@@ -162,7 +162,7 @@ def create_scatter_plot_with_prc_changes(dff, last_year, prev_year, title):
     fig.add_scatter(x=x, y=prc_change, text=prc_change,
                     textposition=['bottom center' if d < 0 else 'top center' for d in prc_change],
                     texttemplate=['+'+'%{text:.0f}%' if d > 0 else '%{text:.0f}%'  for d in prc_change],
-                    mode='markers+text', hovertemplate='%{y:.1f}%',
+                    mode='markers+text', hovertemplate='%{y:.2f}%',
                     marker=dict(symbol='square', size=10, color=delta_color),
                     name='', hoverinfo='skip')
 
@@ -239,7 +239,7 @@ def line_chart_with_pos_and_neg_colors(dff, x_col_name, y_col_name,
         x=dff[x_col_name],  # Set x-axis values
         y=y,  # Set y-axis values
         name='',  # Trace name 
-        hovertemplate='%{x}<br>MoM growth = %{y:.1f}%',  # Hover text format
+        hovertemplate='%{x}<br>MoM growth = %{y:.2f}%',  # Hover text format
         mode='markers',  # Display as connected points with colored markers
         marker=dict(color=marker_colors, size=0.1),  # Marker styling
         fill='tozeroy',  # Fill area under the line to zero
@@ -289,14 +289,14 @@ def mom_changes_subplots(dff, y_col_name, title):
         texttemplate=['+'+'%{text:.0f}%' if d > 0 else '%{text:.0f}%' for d in perc_change_prev_month],                                       
         marker=dict(symbol='square', size=10, color=markers_color),
         line=dict(color='grey', width=1),  
-        name='%△PM', hoverinfo='skip',
+        name='%△PM', hovertemplate='%{y:.2f}%', 
         row=1, col=1)
 
     # Add bar plot for difference in y-values
     fig.add_bar(
         x=x, y=diff_prev_month,        
         customdata=perc_change_prev_month,
-        hovertemplate='%{y:.1f}$ (%{customdata:.1f}%)',
+        hovertemplate='%{y:.2f}$ (%{customdata:.2f}%)',
         name='△PM', marker_color=markers_color, width=0.6, 
         row=2, col=1)
     
@@ -308,7 +308,7 @@ def mom_changes_subplots(dff, y_col_name, title):
         text=diff_prev_month,
         texttemplate=['+'+'%{text:.0f} ' if py > 0 else '%{text:.0f} ' for py in diff_prev_month],
         textposition=['bottom center' if d < 0 else 'top center' for d in diff_prev_month],
-        name='△PM', hoverinfo='skip', 
+        name='△PM', hoverinfo='skip',
         row=2, col=1)
 
     # Add zeroline for bar plot
@@ -328,8 +328,4 @@ def mom_changes_subplots(dff, y_col_name, title):
         yaxis2_range=[min(diff_prev_month)*1.2-40, max(diff_prev_month)*1.2+40])
 
     return fig
-
-
-
-
 
