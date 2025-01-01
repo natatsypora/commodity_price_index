@@ -1,6 +1,6 @@
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
-
+import pandas as pd
 
 # Define colors for positive and negative values
 pos_color = 'rgba(0, 160, 0, 0.7)'
@@ -49,10 +49,10 @@ def create_area_fillgradient(dff, x_col_name, y_col_name, col_scale, line_color,
     fig.add_scatter(
         x=[xmax, xmin], y=[ymax, ymin], 
         mode='markers', 
-        marker=dict(color=['rgba(0, 180, 0, 1)', 'red'], size=5), 
+        marker=dict(color=['green', 'red'], size=5), 
         name='' )
     
-    fig.update_traces(hovertemplate='%{x}<br>Index = $%{y:.2f}')
+    fig.update_traces(hovertemplate='%{x}<br>Index = $%{y:,.2f}')
 
     # Calculate trend
     cng = dff[y_col_name].values[[0, -1]]
@@ -65,12 +65,18 @@ def create_area_fillgradient(dff, x_col_name, y_col_name, col_scale, line_color,
     fig.add_hline(y=cng[0], line=dict(color='black', width=0.5, dash='dot'), 
                   annotation_text=text, annotation_position='right')
     
+    if ymax < 10:
+        y_tickformat = ',.1f'
+    else:
+        y_tickformat = ',.0f'
+
     fig.update_layout(**layout_params,
         title=title, title_font_size=20,  title_y=0.94,      
         showlegend=False, modebar_orientation='v',
         height=400, xaxis_range=[dff[x_col_name].min(), dff[x_col_name].max()],
-        yaxis=dict(ticklabelstandoff=5, ticksuffix='$'), xaxis_ticklabelstandoff=5,
-        margin=dict(l=20, t=70, r=70, b=20))    
+        yaxis=dict(ticklabelstandoff=5, ticksuffix='$' , tickformat=y_tickformat), 
+        xaxis_ticklabelstandoff=5,
+        margin=dict(l=50, t=70, r=70, b=20))    
 
     return fig
 
@@ -226,7 +232,7 @@ def line_chart_with_pos_and_neg_colors(dff, x_col_name, y_col_name,
 
     # Create a list of colors for each data point based on its sign
     # If the value is positive or zero, use 'pos_color', otherwise use 'neg_col'
-    marker_colors = [pos_color if v >= 0 else neg_col for v in y]  
+    marker_colors = [pos_color if v > 0 else neg_col if v < 0 else 'lightgrey' for v in y]  
 
     # Generate a colorscale that transitions between neg_col and pos_color at zero    
     colorscale = colorscale_with_zero_position(y, neg_col, pos_color)  
@@ -257,15 +263,16 @@ def line_chart_with_pos_and_neg_colors(dff, x_col_name, y_col_name,
     # Update the layout of the figure for styling and labels
     fig.update_layout(**layout_params,
         title=title,  # Set chart title
-        title_font_size=18,  # Set title font size        
+        title_font_size=20,  # Set title font size        
         height=250,  # Set chart height      
-        margin=dict(l=20, t=50, r=70, b=20),  # Set chart margins
+        margin=dict(l=30, t=50, r=70, b=20),  # Set chart margins
         yaxis=dict(ticksuffix='%', ticklabelstandoff=5),  # Y-axis styling
         xaxis_ticklabelstandoff=10  # X-axis styling
     )
    
     return fig
 
+# ================================================================================
 def mom_changes_subplots(dff, y_col_name, title): 
     # Culculate the percentage change and the difference in y-values   
     x = dff.index
@@ -306,7 +313,7 @@ def mom_changes_subplots(dff, y_col_name, title):
         mode='text+markers', 
         marker_color='rgba(0,0,0,0)',
         text=diff_prev_month,
-        texttemplate=['+'+'%{text:.0f} ' if py > 0 else '%{text:.0f} ' for py in diff_prev_month],
+        texttemplate=['+'+'%{text:,.0f} ' if py > 0 else '%{text:,.0f} ' for py in diff_prev_month],
         textposition=['bottom center' if d < 0 else 'top center' for d in diff_prev_month],
         name='△PM', hoverinfo='skip',
         row=2, col=1)
@@ -318,6 +325,15 @@ def mom_changes_subplots(dff, y_col_name, title):
     fig.update_yaxes(visible=False)
     fig.update_xaxes(visible=False, ticklabelstandoff=5, row=1)
 
+    if abs(diff_prev_month.max()) <= 10:
+        padding = 10 
+    elif abs(diff_prev_month.max()) <= 1000:
+        padding = 40 
+    elif abs(diff_prev_month.max()) <= 2000:
+        padding = 200
+    else:
+        padding = 400    
+
     # Update layout
     fig.update_layout(**layout_params,
         title=title, titlefont_size=18,
@@ -325,7 +341,64 @@ def mom_changes_subplots(dff, y_col_name, title):
         margin=dict(t=50, b=10, l=10, r=10),
         height=300, showlegend=False,
         yaxis1_range=[min(perc_change_prev_month)*1.2-20, max(perc_change_prev_month)*1.2+20],
-        yaxis2_range=[min(diff_prev_month)*1.2-40, max(diff_prev_month)*1.2+40])
+        yaxis2_range=[min(diff_prev_month)*1.2-padding, max(diff_prev_month)*1.2+padding])
 
     return fig
 
+# ===============================================================================
+def create_sparkline(df_melt, melt_col_name):
+    # filter df by the last month of the available data
+    df_with_graph = df_melt.loc[df_melt['Date'] == '2024-11-01'].copy()  
+
+    #Create the spark line for each commodity 
+    df_with_graph["graph"] = ''
+
+    for i, r in df_with_graph.iterrows():
+        filterDf = df_melt[df_melt[melt_col_name] == r[melt_col_name]]
+        
+        # Calculate min and max values 
+        ymax, ymin = filterDf['Price'].max(), filterDf['Price'].min()
+        # Get index of max and min values
+        xmax = filterDf.loc[filterDf['Price'].idxmax(),'Date']    
+        xmin = filterDf.loc[filterDf['Price'].idxmin(),'Date']  
+
+        # Create figure
+        fig = go.Figure()   
+
+        # Add line with trend for last year     
+        fig.add_scatter(
+            x=filterDf['Date'],
+            y=filterDf['Price'],    
+            mode='lines', name='', 
+            line=dict(color='lightgrey', width=1.5)) 
+        
+        # Add marker for max value
+        fig.add_scatter(x=[xmax], y=[ymax], 
+                        mode='markers', name='',
+                        marker=dict(color='green', size=5)) 
+
+        # Add marker for min value
+        fig.add_scatter(x=[xmin], y=[ymin], 
+                        mode='markers', name='',
+                        marker=dict(color='red', size=5))
+                        
+        # Update hovertemplate for each trace
+        fig.update_traces(hovertemplate='%{x}<br>Price: $%{y:,.2f}') 
+
+        # Add horizontal baseline with previous year value
+        fig.add_hline(y=filterDf['Price'].values[0], line=dict(color='grey', width=0.5, dash='dot'))  
+        
+        # Update layout properties 
+        fig.update_layout(
+            showlegend=False,
+            yaxis_visible=False,       
+            xaxis=dict(range=[filterDf['Date'].min()+pd.DateOffset(days=-7), 
+                              filterDf['Date'].max()+pd.DateOffset(days=7)], 
+                       visible=False),      
+            margin=dict(l=0, r=0, t=0, b=0),
+            template="plotly_white")
+            
+        # Add figure to dataframe
+        df_with_graph.at[i,'graph'] = fig  
+
+    return df_with_graph 

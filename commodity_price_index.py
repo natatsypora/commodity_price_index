@@ -1,61 +1,34 @@
 import dash
-from dash import Dash, dcc, html, Input, Output
+from dash import Dash, dcc, html, Input, Output, State
 import dash_bootstrap_components as dbc
 import pandas as pd
-import numpy as np
 from cpi_chart_function import *
-pd.set_option('future.no_silent_downcasting', True)
+from data_preprocessing import df
+from aggrid_def import aggrid_table
 
-
-url ='https://github.com/natatsypora/commodity_price_index/blob/main/CMO-Historical-Data-Monthly.xlsx?raw=true' 
-sheet_name='Monthly Indices'
-skiprows=[1,2,3,4]
-
-def read_and_clean_data(url, sheet_name, skiprows):
-    # Read data from Excel file
-    Monthly_Indices = pd.read_excel(url, sheet_name=sheet_name, skiprows=skiprows) 
-    # Fill missing values for header
-    for col in Monthly_Indices.columns[1:]:
-        Monthly_Indices[col] = Monthly_Indices[col].ffill()
-        Monthly_Indices[col] = Monthly_Indices[col].bfill()
-
-    # Set the first row as header 
-    Monthly_Indices.columns = Monthly_Indices.iloc[0]
-    # Drop the 5 first rows and reset index
-    df = Monthly_Indices[5:]
-    df.reset_index(drop=True, inplace=True)
-   # Identify and rename the unnamed column safely 
-    unnamed_col = df.columns[df.columns.isna()][0] 
-    df.rename(columns={unnamed_col: 'Date'}, inplace=True)
-    # Remove the special character from the column names
-    df.columns = [col.strip(' **') for col in df.columns]
-    # Convert 'Date' column to datetime format 
-    df['Date'] = pd.to_datetime(df['Date'], format='%YM%m')
-    # Convert all columns (except 'Date') to numeric format    
-    df.iloc[:, 1:] = df.iloc[:, 1:].apply(pd.to_numeric, errors='coerce')   
-    # Add year and formatted month columns using assign 
-    df = df.assign(
-         year=lambda x: x['Date'].dt.year, 
-         month_3=lambda x: x['Date'].dt.strftime('%b'))
-    # Reorder months
-    month_order_list = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-    df['month_3'] = df['month_3'].astype("category").cat.set_categories(month_order_list, ordered=True)     
-    # Filter data by selected years (2010-2024)
-    df_2010_2024 = df[df['Date'] >= '2010-01-01']
-
-    return df_2010_2024
-
-# Create dataframe
-df = read_and_clean_data(url, sheet_name, skiprows)
 
 # Create link button for header
-link_btn = html.A( href='https://github.com/natatsypora?tab=repositories', 
+link_btn = html.A( href='https://github.com/natatsypora/commodity_price_index', 
                   children=[ html.I(className="fab fa-github fa-2x")], 
                   target='_blank', style={'textDecoration':'none', 'color':'rgba(31,119,180,0.7)',} )
 
 
+# Create modal with line and area graphs
+modal_with_table = dbc.Modal([ 
+    dbc.ModalBody([aggrid_table]),
+    dbc.ModalFooter(dbc.Button("Close", id="close-modal-button", 
+                               n_clicks=0, class_name='ms-auto btn-secondary'), 
+                    className='p-0'),
+        ],
+        id="modal-with-table",
+        size="xl",
+        centered=True,
+        is_open=False)
+
+
 # Create app object===========================================================================
-app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, dbc.icons.FONT_AWESOME])
+app = Dash(__name__, external_stylesheets=[dbc.themes.BOOTSTRAP, 
+                                           dbc.icons.FONT_AWESOME, 'assets/style.css'])
 #============================================================================================= 
 
 
@@ -82,14 +55,19 @@ app.layout = dbc.Container([
                 clearable=False, 
                 optionHeight=20), width=4),
         dbc.Col(html.Label('Select Year', className='me-3'), 
-                width=2, className=' offset-1 d-flex align-items-center justify-content-end'),
+                width=2, className='offset-1 d-flex align-items-center justify-content-end'),
         dbc.Col(
             dcc.Dropdown(
                 id='year-dropdown',
                 options=[{'label': i, 'value': i} for i in df['year'].unique()[1:]],
                 value=2023,  # Default value
                 clearable=False, 
-                optionHeight=20 ), width=2),
+                optionHeight=20 ), width=1),
+        dbc.Col([
+            dbc.Button("View Table", id="open-modal-button", n_clicks=0, 
+                       style={'background': '#8FBBD9', 'border': '1px solid #8FBBD9'}), 
+            modal_with_table,          
+        ], width=2, className='d-flex align-items-center justify-content-end'),
         ], class_name='mb-3'),    
      # Graphs
      dbc.Row([         
@@ -119,8 +97,7 @@ app.layout = dbc.Container([
 ])
 
 # Callbacks==========================================================
-@app.callback(
-    #Output('metric-card', 'figure'),
+@app.callback(    
     Output('area-graph', 'figure'),
     Output('yoy-graph', 'figure'),
     Output('scatter-graph', 'figure'),
@@ -145,11 +122,24 @@ def update_graph(index, selected_year):
     scatter_graph = create_scatter_plot_with_prc_changes(ct_df, last_year, prev_year, title)
 
     mom_rate_graph = line_chart_with_pos_and_neg_colors(dff, 'Date', index, pos_color, neg_col, 
-                                                        title='MoM Growth Rate (%) Across Years')
+                                                        title='MoM Growth Rate Across Years (%)')
     
     mom_change_graph = mom_changes_subplots(ct_df, y_col_name=last_year, title=f'MoM Change {last_year}')  
     
     return  area_graph, yoy_graph, scatter_graph, mom_rate_graph, mom_change_graph
+
+
+# Callback for toggle modal
+@app.callback(    
+    Output("modal-with-table", "is_open"),
+    Input("open-modal-button", "n_clicks"),
+    Input("close-modal-button", "n_clicks"),
+    State("modal-with-table", "is_open"),
+)
+def toggle_modal(n1, n2, is_open):
+    if n1 or n2:
+        return not is_open
+    return is_open
 
 
 if __name__ == '__main__':
